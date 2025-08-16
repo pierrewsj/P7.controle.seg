@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Portaria 07 - Controle de Chassi</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver/dist/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>STELLANTIS</h1>
+    <h2>Segurança Patrimonial</h2>
+    <h3>Controle de Veículos - Industrialização</h3>
+
+    <div class="form-grid">
+      <label>Setor
+        <input id="setor" type="text" value="Portaria 07" readonly>
+      </label>
+      <label>Turno
+        <input id="turno" readonly>
+      </label>
+      <label style="position: relative;">
+        Número de chassi
+        <input id="numeroChassi" autocomplete="off" placeholder="Digite e pressione Enter">
+        <span class="chassi-confirm-icon" id="chassiConfirmIcon">✓</span>
+      </label>
+      <label>Controlador de acesso
+        <input id="controladorAcesso" type="text" placeholder="Ex.: Nome / Registro">
+      </label>
+    </div>
+
+    <div class="info" id="info" aria-live="polite"></div>
+    <div class="auto-save-icon">💾 Salvamento automático</div>
+
+    <div class="button-row">
+      <button id="btnOutrasInfos">Outras informações</button>
+      <button id="btnToggleTabela">Visualizar Tabela</button>
+      <button id="btnSair">Sair</button>
+    </div>
+
+    <div class="button-row" id="botoesInternos" style="display:none;">
+      <button id="btnAdicionar">Adicionar (Enter)</button>
+      <button id="btnDesfazer">Desfazer (Ctrl+Z)</button>
+      <button id="btnEditarSenha">Editar senha</button>
+      <button id="btnFecharBotoesInternos">Fechar</button>
+    </div>
+
+    <div id="totalVeiculos" class="info" style="font-size:1.2rem;">Total de veículos: 0</div>
+
+    <div id="tabelaContainer" class="table-wrap" style="display:none;">
+      <table id="tabelaChassi">
+        <thead>
+          <tr><th>Setor</th><th>Turno</th><th>Controlador de acesso</th><th>Número de chassi</th><th>Data e Hora</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="common.js"></script>
+  <script>
+    const storageKey = 'tabelaChassi';
+    let senhaOutrasInfos = localStorage.getItem('senhaOutrasInfos') || '1234';
+    let tabelaDados = [];
+
+    function atualizarTotal(){ const el = document.getElementById('totalVeiculos'); if (el) el.textContent = 'Total de veículos: ' + tabelaDados.length; }
+
+    function salvarLocal(){ localStorage.setItem(storageKey, JSON.stringify(tabelaDados)); }
+
+    function atualizarTabela(){
+      atualizarTotal();
+      const tbody = document.querySelector('#tabelaChassi tbody');
+      tbody.innerHTML = '';
+      tabelaDados.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${item.setor}</td><td>${item.turno}</td><td>${item.controlador}</td><td>${item.chassi}</td><td>${item.dataHora}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function adicionarItem(){
+      const info = document.getElementById('info');
+      const inputChassi = document.getElementById('numeroChassi');
+      const iconConfirm = document.getElementById('chassiConfirmIcon');
+      const chassi = inputChassi.value.trim();
+      const controlador = document.getElementById('controladorAcesso').value.trim();
+      if (!chassi){ info.textContent = 'Digite o número de chassi.'; inputChassi.focus(); return; }
+      if (!controlador){ info.textContent = 'Preencha o controlador de acesso.'; document.getElementById('controladorAcesso').focus(); return; }
+      tabelaDados.push({ setor: document.getElementById('setor').value, turno: document.getElementById('turno').value, controlador, chassi, dataHora: new Date().toLocaleString('pt-BR') });
+      salvarLocal();
+      atualizarTabela();
+      inputChassi.value = '';
+      info.textContent = 'N° de chassi adicionado - ' + chassi;
+      iconConfirm.classList.add('visible');
+      setTimeout(()=> iconConfirm.classList.remove('visible'), 1200);
+      inputChassi.focus();
+    }
+
+    async function desfazerUltimo(){
+      if (!tabelaDados.length){ await AppUI.showAlert('Nada para desfazer.'); return; }
+      tabelaDados.pop();
+      salvarLocal();
+      atualizarTabela();
+      AppUI.showToast('Último item removido.', {type:'info'});
+    }
+
+    function toggleTabela(){
+      const container = document.getElementById('tabelaContainer');
+      const btn = document.getElementById('btnToggleTabela');
+      const isHidden = container.style.display === 'none' || !container.style.display;
+      container.style.display = isHidden ? 'block' : 'none';
+      btn.textContent = isHidden ? 'Ocultar Tabela' : 'Visualizar Tabela';
+    }
+
+    async function acessarOutrasInfos(){
+      const ok = await AppUI.showConfirm({message:'Digite a senha de 4 dígitos em seguida.'});
+      if (!ok) return;
+      const val = prompt('Senha (4 dígitos):');
+      if (val === senhaOutrasInfos){
+        document.getElementById('botoesInternos').style.display = 'flex';
+      }else{
+        document.getElementById('botoesInternos').style.display = 'none';
+        await AppUI.showAlert('Senha incorreta.');
+      }
+    }
+    function ocultarBotoesInternos(){ document.getElementById('botoesInternos').style.display = 'none'; }
+
+    async function editarSenha(){
+      const atual = prompt('Digite a senha atual:');
+      if (atual !== senhaOutrasInfos){ await AppUI.showAlert('Senha incorreta!'); return; }
+      const nova = prompt('Digite a nova senha de 4 dígitos:');
+      if (nova && /^\d{4}$/.test(nova)){
+        senhaOutrasInfos = nova; localStorage.setItem('senhaOutrasInfos', nova);
+        await AppUI.showAlert('Senha alterada com sucesso!'); ocultarBotoesInternos();
+      } else { await AppUI.showAlert('Senha inválida!'); }
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+      feather.replace();
+      tabelaDados = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      document.getElementById('numeroChassi').value = localStorage.getItem('draftChassi') || '';
+      document.getElementById('controladorAcesso').value = (localStorage.getItem('usuario')||'') + ' / ' + (localStorage.getItem('registro')||'');
+      const turnoSalvo = localStorage.getItem('turno');
+      if (turnoSalvo) document.getElementById('turno').value = turnoSalvo;
+      atualizarTabela();
+      if (tabelaDados.length) AppUI.showToast('Dados restaurados.', {type:'info'});
+
+      // Bind buttons
+      document.getElementById('btnOutrasInfos').onclick = acessarOutrasInfos;
+      document.getElementById('btnToggleTabela').onclick = toggleTabela;
+      document.getElementById('btnSair').onclick = ()=> AppUI.confirmNavigate('interface_principal.html');
+      document.getElementById('btnAdicionar').onclick = adicionarItem;
+      document.getElementById('btnDesfazer').onclick = desfazerUltimo;
+      document.getElementById('btnEditarSenha').onclick = editarSenha;
+      document.getElementById('btnFecharBotoesInternos').onclick = ocultarBotoesInternos;
+
+      // Autosave drafts
+      window.addEventListener('beforeunload', ()=>{
+        localStorage.setItem('draftChassi', document.getElementById('numeroChassi').value);
+        localStorage.setItem('draftControlador', document.getElementById('controladorAcesso').value);
+      });
+
+      // Atalhos de teclado (Enter e Ctrl+Z)
+      AppUI.registerShortcuts({
+        onEnter: ()=>{
+          const el = document.activeElement;
+          if (el && el.id === 'numeroChassi'){ adicionarItem(); }
+        },
+        onUndo: ()=>{ desfazerUltimo(); }
+      });
+    });
+  </script>
+</body>
+</html>
