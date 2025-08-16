@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stellantis - Menu</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver/dist/FileSaver.min.js"></script>
+</head>
+<body>
+  <div class="container" style="max-width: 440px;">
+    <h1>STELLANTIS</h1>
+    <h2>Segurança Patrimonial</h2>
+    <div class="button-row" style="margin-top:.5rem">
+      <button class="botao" onclick="location.href='controle_p7_industrializacao.html'">Veículos - Industrialização</button>
+      <button class="botao" onclick="location.href='controle_p7_comissao_seguro.html'">Veículos - Comissão Seguro</button>
+      <button class="btn-secondary" onclick="finalizarTurno()">Finalizar turno</button>
+      <button onclick="sairParaLogin()">Sair para login</button>
+    </div>
+    <div class="info" id="usuarioExibido" aria-live="polite"></div>
+  </div>
+
+  <script src="common.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const u = localStorage.getItem("usuario")||"", r = localStorage.getItem("registro")||"";
+      if(u||r) document.getElementById("usuarioExibido").textContent = `👤 ${u}${r?" / "+r:""}`;
+    });
+    async function finalizarTurno() {
+      const dadosChassi   = JSON.parse(localStorage.getItem('tabelaChassi') || '[]');
+      const dadosComissao = JSON.parse(localStorage.getItem('tabelaComissaoSeguro') || '[]');
+      const semDados = (!dadosChassi || dadosChassi.length === 0) && (!dadosComissao || dadosComissao.length === 0);
+      if (semDados) { await AppUI.showAlert('Não há dados para exportar.'); return; }
+      const ok = await AppUI.showConfirm({message:'Tem certeza que deseja exportar dados e sair?'});
+      if (!ok) return;
+      if (!window.ExcelJS || !window.saveAs) { await AppUI.showAlert('Bibliotecas ExcelJS/FileSaver não carregadas.'); return; }
+      try {
+        const workbook = new ExcelJS.Workbook();
+        const ws1 = workbook.addWorksheet('Industrialização');
+        ws1.columns = [
+          { header: 'Setor', key: 'setor', width: 18 },
+          { header: 'Turno', key: 'turno', width: 12 },
+          { header: 'Controlador de acesso', key: 'controlador', width: 24 },
+          { header: 'Número de chassi', key: 'chassi', width: 22 },
+          { header: 'Data e Hora', key: 'dataHora', width: 22 }
+        ];
+        (dadosChassi||[]).forEach(d => ws1.addRow(d));
+        const ws2 = workbook.addWorksheet('Comissão de Seguro');
+        ws2.columns = [
+          { header: 'Setor', key: 'setor', width: 18 },
+          { header: 'Turno', key: 'turno', width: 12 },
+          { header: 'Controlador de acesso', key: 'controlador', width: 24 },
+          { header: 'Veículo (placa/chassi)', key: 'veiculo', width: 24 },
+          { header: 'Observações', key: 'observacoes', width: 28 },
+          { header: 'Data e Hora', key: 'dataHora', width: 22 }
+        ];
+        (dadosComissao||[]).forEach(d => ws2.addRow(d));
+        try { await ws1.protect('1234'); await ws2.protect('1234'); } catch(e){}
+        const buffer = await workbook.xlsx.writeBuffer();
+        const agora = new Date();
+        const dd = String(agora.getDate()).padStart(2,'0');
+        const mm = String(agora.getMonth()+1).padStart(2,'0');
+        const yyyy = String(agora.getFullYear());
+        const HH = String(agora.getHours()).padStart(2,'0');
+        const MM = String(agora.getMinutes()).padStart(2,'0');
+        const nome = `Relatorio_Turno_${dd}-${mm}-${yyyy}_${HH}h${MM}.xlsx`;
+        saveAs(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), nome);
+        localStorage.setItem('turnoFinalizado','true');
+        AppUI.showToast('Planilha gerada com sucesso. Turno finalizado!', {type:'success'});
+      } catch (e) {
+        AppUI.showToast('Falha na geração da planilha.', {type:'error'});
+      }
+    }
+    function sairParaLogin(){ AppUI.confirmNavigate('index.html', {requireFinalizeKey:'turnoFinalizado', notFinalizedMessage:'Finalize o turno antes de sair para o login.'}); }
+  </script>
+</body>
+</html>
